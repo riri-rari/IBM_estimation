@@ -122,15 +122,13 @@ likelihood_call <- function(parms, data, average_likelihood = T, negativell = T,
       #check the type of the likelihood 
       
       if(type != 'poisson' & !is.null(additional_parms)){
-        print('not')
         
         overdispersion <- overdispersion_nb(additional_parms, mu = simulated_incidence$I, data = data$I, upper_nb = additional_parms)
         
         likelihoods <- c(likelihoods, compute_likelihood( data = data$I, parms = simulated_incidence$I, type = type, additional_parms = overdispersion$value))
         
       } else {
-        
-        print('here')
+      
         #compute the likelihood for this run 
       likelihoods <- c(likelihoods, compute_likelihood( data = data$I, parms = simulated_incidence$I, type = type))
         
@@ -198,38 +196,42 @@ design_optimiser <- function(value, data, seeds, average_likelihood  = T, negati
 }
 
 ## call_optimiser: invokes the design_optimser in a parallelised way or not 
-
 call_optimiser <- function(data, ids, values, method = 'Nelder-Mead', seeds, parallel = T, main_cluster = 2, average_likelihood = T, negativell = T, type = 'pois',  additional_parms = NULL,  cl_num = 3, lower = -Inf, upper = Inf){
   
   if(parallel){
     
     #export the environment 
-    export = c('optim', 'likelihood_call', 'compute_likelihood', 'run_IBM_seed', 'run_ibm_location', 'create_population_matrix')
+    export = c('optim', 'likelihood_call', 'compute_likelihood', 'run_IBM_seed', 'run_ibm_location', 'create_population_matrix', 'design_optimiser', 'create_incidence_matrix')
     
     my.cluster <- makeCluster(2)
     registerDoParallel(cl = my.cluster)
     clusterExport(my.cluster, export)
     
-    values <- foreach(i = 1:length(ids), .combine = "rbind") %dopar% {design_optimiser(value[i], data = data[data$ID == ids[i], ], seeds = seeds, average_likelihood  = average_likelihood, negativell = negativell, type = type, additional_parms = additional_parms, cl_num = cl_num,  method = method, lower = lower, upper = upper) }
+    values_returned <- foreach(i = 1:length(ids), .combine = "rbind") %dopar% {c(ids[i], design_optimiser(values[i], data = data[data$ID == ids[i], ], seeds = seeds, average_likelihood  = average_likelihood, negativell = negativell, type = type, additional_parms = additional_parms, cl_num = cl_num,  method = method, lower = lower, upper = upper)) }
   
     stopCluster(my.cluster)
     
   } else {
     
-    values_returned <- design_optimiser(value = values[1], data = data[data$ID == ids[1], ], seeds = seeds, average_likelihood  = average_likelihood, negativell = negativell, type = type, additional_parms = additional_parms,  cl_num = cl_num,  method = method, lower = lower, upper = upper)
+    
+    values_returned <- c(ids[1], design_optimiser(value = values[1], data = data[data$ID == ids[1], ], seeds = seeds, average_likelihood  = average_likelihood, negativell = negativell, type = type, additional_parms = additional_parms,  cl_num = cl_num,  method = method, lower = lower, upper = upper))
     
     for (i in 2:length(ids)){
       
-     values_returned  <- rbind(values_returned, design_optimiser(value = values[i], data = data[data$ID == ids[i], ], seeds = seeds, average_likelihood  = average_likelihood, negativell = negativell, type = type, additional_parms = additional_parms, cl_num = cl_num,  method = method, lower = lower, upper = upper))
-  
+     values_returned  <- rbind(values_returned, c(ids[i], design_optimiser(value = values[i], data = data[data$ID == ids[i], ], seeds = seeds, average_likelihood  = average_likelihood, negativell = negativell, type = type, additional_parms = additional_parms, cl_num = cl_num,  method = method, lower = lower, upper = upper)))
+      
+      
     }
+    
   }
   
-  colnames(values_returned) <- c('nruns', 'convergence', 'input parm', 'hessian', 'mins')
+  colnames(values_returned) <- c('ID', 'nruns', 'convergence', 'input parm', 'hessian', 'mins')
   
   return(values_returned)
   
 }
+
+ 
 
 # Other function callers
 
