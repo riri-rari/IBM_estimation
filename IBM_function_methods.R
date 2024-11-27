@@ -43,7 +43,7 @@ run_IBM_seed <- function(seed, parm){
 
 ## compute_likelihood: function to compute the likelihood from data. For now just Poisson and Negative Binomial
 
-compute_likelihood <- function (nuissance_parms = NULL, data, type = 'pois', parms) {
+compute_likelihood <- function (nuissance_parms = NULL, data, type = 'pois', parms, nll = F) {
   
   if (type == 'pois'){
     
@@ -54,35 +54,46 @@ compute_likelihood <- function (nuissance_parms = NULL, data, type = 'pois', par
     data_lik <- dnbinom(data, mu = parms, size = nuissance_parms)
     
   }
-  
   ll <- sum(log(data_lik + 0.0001))
   #print(ll)
-  ll <- exp(ll)
-    
-  return(ll)
   
-}
-  return(data)
+  if (nll){
+    
+    ll <- -1*ll
+    
+  } else {
+    
+    ll <- exp(ll)
+    
+  }  
+  
+  return(ll)  
 }
 
-## overdispersion_nb: function to compute the nuissance overdispersion parameter for the NB 
+  
+## overdispersion_nb: function to compute the nuissance overdispersion parameter for the NB.
 
-overdispersion_nb <- function(size = 1, mu, data, upper_nb = 20){
+overdispersion_nb <- function(mu, data, upper_nb = 20){
+  
+  size <- upper_nb/2
   
   #call the compute_likelihood while rewritten to have the additional parms as first argument so you can use that direclty in the optimisation 
   
   #optim with the data as the original data and the mu as the simulation ones 
-  values <- optim(par = size, compute_likelihood, parms = mu, data = data, method = 'Brent', lower = 0, upper = upper_nb, hessian = T)
+  values <- optim(par = size, compute_likelihood, parms = mu, data = data, nll = T, method = 'Brent', lower = 0.1, upper = upper_nb, hessian = T, type = 'nb')
+  # 
   
-  #return the solution and the overdispersion parameter
+   #return the solution and the overdispersion parameter
+  
   return(list('value' = values$par, 'convergence' = values$convergence, 'hessian' = values$hessian))
+  
   
 }
 
 
 ## likleihood_call: compute the IBM and call the likleihood function with the appropriate function parameters. Can return the negative loglikelihood or the likelihood. Function runs in parallel
 
-likelihood_call <- function(parms, data, average_likelihood = T, negativell = T, transformed = T, type = 'pois', additional_parms = NULL, seeds, cl_num = 5) {
+  likelihood_call <- function(parms, data, average_likelihood = T, negativell = T, transformed = T, type = 'pois', additional_parms = NULL, seeds, cl_num = 5) {
 
   print(parms)
   
@@ -91,8 +102,7 @@ likelihood_call <- function(parms, data, average_likelihood = T, negativell = T,
     parms <- 1/(1 + exp(-parms))
     
   }
-
-  #(windows based)
+  
   #create the cluster and run the simulations 
   require(parallel)
   cl <- parallel::makeCluster(cl_num)
@@ -103,10 +113,7 @@ likelihood_call <- function(parms, data, average_likelihood = T, negativell = T,
   simulated_data <- parLapply(cl, seeds, run_IBM_seed, parm = parms)
   
   stopCluster(cl)
-
-  #(linux based)
-
-  # insert
+  
   
   #compute the likelihoods and the functions of them 
   
@@ -118,19 +125,24 @@ likelihood_call <- function(parms, data, average_likelihood = T, negativell = T,
     for (i in seeds){
   
       simulated_incidence <- create_incidence_matrix(simulated_data[[i]])
-
+      
+      
       #check the type of the likelihood 
       
       if(type != 'poisson' & !is.null(additional_parms)){
-        
-        overdispersion <- overdispersion_nb(additional_parms, mu = simulated_incidence$I, data = data$I, upper_nb = additional_parms)
+       
+        overdispersion <- overdispersion_nb(additional_parms/2, mu = simulated_incidence$I, data = data$I, upper_nb = additional_parms)
         
         likelihoods <- c(likelihoods, compute_likelihood( data = data$I, parms = simulated_incidence$I, type = type, nuissance_parms = overdispersion$value))
         
+        #append the values for the NB
+        lines <- c(data$ID, i, as.numeric(overdispersion))
+        write.table(lines, file = "./Data/test.csv", append = TRUE)
+        
       } else {
-      
+        
         #compute the likelihood for this run 
-      likelihoods <- c(likelihoods, compute_likelihood( data = data$I, parms = simulated_incidence$I, type = type))
+        likelihoods <- c(likelihoods, compute_likelihood( data = data$I, parms = simulated_incidence$I, type = type))
         
       }
       
@@ -153,15 +165,24 @@ likelihood_call <- function(parms, data, average_likelihood = T, negativell = T,
     
     average_incidence <- colMeans(t(data_records))
     
+    #check the type of likelihood asked for
+    
     if(type != 'poisson' & !is.NULL(additional_parms)){
         
-        overdispersion <- overdispersion_nb(additional_parms, mu = average_incidence, data = data$I, upper_nb = additional_parms)
         
-        likelihoods <- c(likelihoods, compute_likelihood( data = data$I, parms = average_incidence, type = type, nuissance_parms = overdispersion$value))
+        overdispersion <- overdispersion_nb(additional_parms/2, mu = average_incidence, data = data$I, upper_nb = additional_parms)
+        
+        #likelihood with mean values for the negative binomial 
+        output <- compute_likelihood(nuissance_parms = overdispersion$value, data = data$I, parms = average_incidence, type = type)
+        
+        #save the entries 
+       lines <- c(data$ID, i, as.numeric(overdispersion))
+        write.table(lines, file = "./Data/test.csv", append = TRUE)
         
       } else {
         
-        #compute the likelihood with the mean data 
+        
+        #compute the likelihood with the mean data for poisson 
         output <- compute_likelihood(data = data$I, parms = average_incidence, type = type)
         
       }
@@ -169,13 +190,17 @@ likelihood_call <- function(parms, data, average_likelihood = T, negativell = T,
   }
   
   if (negativell){
-
+    
+  
      output <- -1*log(output)
   }
   
   return(output)
   
 }
+
+
+  
 
 # Optimisation 
 
@@ -188,7 +213,7 @@ design_optimiser <- function(value, data, seeds, average_likelihood  = T, negati
   init <- Sys.time()
   results <- optim(c(logit(value)), likelihood_call, data = data, seeds = seeds, average_likelihood = average_likelihood, negativell = negativell, transformed = T, type = type, additional_parms = additional_parms, cl_num = cl_num,  method = c("Nelder-Mead"), hessian = T, lower = lower, upper = upper)
   end <- Sys.time()
-  
+
   data_collect <- c(length(seeds), results$convergence, results$par, results$hessian, difftime(end, init, unit = "mins"))
   
   return(data_collect)
@@ -196,6 +221,7 @@ design_optimiser <- function(value, data, seeds, average_likelihood  = T, negati
 }
 
 ## call_optimiser: invokes the design_optimser in a parallelised way or not 
+ 
 call_optimiser <- function(data, ids, values, method = 'Nelder-Mead', seeds, parallel = T, main_cluster = 2, average_likelihood = T, negativell = T, type = 'pois',  additional_parms = NULL,  cl_num = 3, lower = -Inf, upper = Inf){
   
   if(parallel){
@@ -213,12 +239,14 @@ call_optimiser <- function(data, ids, values, method = 'Nelder-Mead', seeds, par
     
   } else {
     
+    
     values_returned <- c(ids[1], design_optimiser(value = values[1], data = data[data$ID == ids[1], ], seeds = seeds, average_likelihood  = average_likelihood, negativell = negativell, type = type, additional_parms = additional_parms,  cl_num = cl_num,  method = method, lower = lower, upper = upper))
     
     for (i in 2:length(ids)){
       
      values_returned  <- rbind(values_returned, c(ids[i], design_optimiser(value = values[i], data = data[data$ID == ids[i], ], seeds = seeds, average_likelihood  = average_likelihood, negativell = negativell, type = type, additional_parms = additional_parms, cl_num = cl_num,  method = method, lower = lower, upper = upper)))
-         
+      
+      
     }
     
   }
@@ -228,7 +256,6 @@ call_optimiser <- function(data, ids, values, method = 'Nelder-Mead', seeds, par
   return(values_returned)
   
 }
-
  
 
 # Other function callers
@@ -255,14 +282,15 @@ subset_likleihood_call <- function(parms, data, seeds, cl_num, main_cluster = 2,
 
 compute_hessian <- function(inputdata, parms, seeds, cl_num, main_cluster, average_likelihood = T, negativell = T, type = 'pois',  additional_parms = NULL){
   
-  export = c('hessian', 'likelihood_call', 'compute_likelihood', 'run_IBM_seed', 'run_ibm_location', 'create_population_matrix', 'create_incidence_matrix')
+  export = c('hessian', 'likelihood_call', 'compute_likelihood', 'run_IBM_seed', 'run_ibm_location', 'create_population_matrix', 'create_incidence_matrix', 'overdispersion_nb')
+  
+    ids <- unique(inputdata$ID)
     
     my.cluster <- makeCluster(main_cluster)
     registerDoParallel(cl = my.cluster)
     clusterExport(my.cluster, export)
-
-  ## chaneg tje +99 doen just for experiments 
-    values <- foreach(i = 1:length(parms), .combine = "rbind") %dopar% {c(parms[i], unique(inputdata[inputdata$ID == (99+i), ]$ID), hessian(likelihood_call, parms[i], data = inputdata[inputdata$ID == (99+i), ], average_likelihood = T, negativell = T, transformed = T, type = 'pois', additional_parms = NULL, seeds = seeds, cl_num = cl_num)) }
+    
+    values <- foreach(i = 1:length(parms), .combine = "rbind") %dopar% {c(parms[i], unique(inputdata[inputdata$ID == ids[i], ]$ID), hessian(likelihood_call, parms[i], data = inputdata[inputdata$ID == ids[i], ], average_likelihood = T, negativell = T, transformed = T, type = 'pois', additional_parms = NULL, seeds = seeds, cl_num = cl_num)) }
   
     stopCluster(my.cluster)
     
@@ -270,4 +298,3 @@ compute_hessian <- function(inputdata, parms, seeds, cl_num, main_cluster, avera
   
 }
 
-# Analysis 
