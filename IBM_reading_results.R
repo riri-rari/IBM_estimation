@@ -1,6 +1,7 @@
 # Optimisation methods results 
 ## Multiple datastreams on different resplications 
 
+
 countNegative <- function(x){
   
  if ( sum(x < 0) > 0){
@@ -74,6 +75,8 @@ confidence_interval <- function(data, variance, prob = 0.95){
 compute_analysis <- function(data1, data2, data3, true_parm = 0.1){
   
   true_parm <- logit(true_parm)
+  
+  ids <- data1$ID
   
   #sum convergence 
   indeces <- removal_not_converged(data1, data2, data3)
@@ -154,13 +157,9 @@ compute_analysis <- function(data1, data2, data3, true_parm = 0.1){
   
   stats <- data.frame('mean' = means, 'ese' = sqrt(var), 'tse' =  msde, 'mse' = mse, 'coverage95h' = coverage_95_h ,'coverage90h' = coverage_90_h, 'coverage95' = coverage_95, 'coverage90' = coverage_90 )
   
-  return(list('stats' = stats, 'not_converged' = nc, 'negative_hessian' = track$negative_indeces, 'zero_hessian' =  track$zero_indeces, 'CI_95h' = CI_95h, 'CI_95' = CI_95, 'CI_90h' = CI_90h, 'CI_90' = CI_90))
+  output <- list('stats' = stats, 'not_converged' = nc, 'negative_hessian' = ids[track$negative_indeces], 'zero_hessian' =  ids[track$zero_indeces], 'CI_95h' = CI_95h, 'CI_95' = CI_95, 'CI_90h' = CI_90h, 'CI_90' = CI_90)
+  
+  return(output)
   
 }
 
-
-# Example 
-AvLik_NM_1_runs <- read.csv('./AvLik_Pois_NM_rep1.csv')
-AvLik_NM_5_runs <- read.csv( './AvLik_Pois_NM_rep5.csv')
-AvLik_NM_10_runs <- read.csv( './AvLik_Pois_NM_rep10.csv')
-AvLik_NM_Pois <- compute_analysis(AvLik_NM_1_runs, AvLik_NM_5_runs, AvLik_NM_10_runs)
