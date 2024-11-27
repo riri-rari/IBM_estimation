@@ -137,7 +137,7 @@ overdispersion_nb <- function(mu, data, upper_nb = 20){
         
         #append the values for the NB
         lines <- c(data$ID, i, as.numeric(overdispersion))
-        write.table(lines, file = "./Data/test.csv", append = TRUE)
+        write.table(lines, file = "../Data/test.csv", append = TRUE)
         
       } else {
         
@@ -177,7 +177,7 @@ overdispersion_nb <- function(mu, data, upper_nb = 20){
         
         #save the entries 
        lines <- c(data$ID, i, as.numeric(overdispersion))
-        write.table(lines, file = "./Data/test.csv", append = TRUE)
+        write.table(lines, file = "../Data/test.csv", append = TRUE)
         
       } else {
         
