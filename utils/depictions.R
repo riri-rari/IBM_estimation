@@ -47,6 +47,6 @@ ggplot(data = comparative_data, aes(x = input.parm, y = AvLik)) + geom_line(aes(
 
 #depict: closer look to the functions with bad hessian in 5 runs 
 data_finer_grid_bad_hessian <-  read.csv('../Data//AvLik_Pois_NM_comparativehessian_finergrid_rep5.csv' )
-data_103 <- data_finer_grid_bad_hessian[data_finer_grid_bad_hessian$Id == 103, ]
+data_103 <- data_finer_grid_bad_hessian[data_finer_grid_bad_hessian$ID == 103, ]
 data_103L <- data_103[data_103$Code == 'L', ]
 plot(data_103L$input.parm, data_103L$AvLik, type = 'b')
