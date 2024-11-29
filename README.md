@@ -4,6 +4,13 @@
 
 This code is aimed at running a desired optimisation procedure invoking the R optim() function to obtain a MLE for a Poisson or a Negative Binomial random variable (extensions to be done). The IBM is provided throught the source 'ibm_functions_modified.R'. The entire process can be parallelised in multiple points to speed up the computations.
 
+Note that to obtain the data from 'ibm_functions_modified.R' and convert to the incidence matrix by 'create_incidence_matrix' it is possible to run
+
+```R
+data <- run_ibm_location(rng_seed = 2, transmission_prob = 0.7) #default transmission_prob = 0.1 
+incidence_data <- create_incidence_matrix(data)
+```
+
 The output of 'call_optimiser' is a dataframe with the number of runs/times the IBM has been called, the convergence status, the optimal parmater found, the hessian at that parameter and the time needed. 
 
 The output of 'subset_likleihood' is a matrix with the parameter and the objective function value at that parameter.
