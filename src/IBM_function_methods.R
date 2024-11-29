@@ -167,7 +167,7 @@ overdispersion_nb <- function(mu, data, upper_nb = 20){
     
     #check the type of likelihood asked for
     
-    if(type != 'poisson' & !is.NULL(additional_parms)){
+    if(type != 'poisson' & !is.null(additional_parms)){
         
         
         overdispersion <- overdispersion_nb(additional_parms/2, mu = average_incidence, data = data$I, upper_nb = additional_parms)
